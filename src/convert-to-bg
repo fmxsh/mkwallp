@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Check arguments
+if [[ $# -ne 2 ]]; then
+	echo "Usage: $0 <source_dir> <output_dir>"
+	exit 1
+fi
+
+SRC_DIR="$1"
+OUT_DIR="$2"
+
+# Ensure output directory exists
+mkdir -p "$OUT_DIR"
+
+for src in "$SRC_DIR"/*.{jpg,jpeg,png}; do
+	[[ -f $src ]] || continue
+
+	filename="$(basename "$src")"
+	out="$OUT_DIR/$filename"
+	[[ -f $out ]] && {
+		echo "⏭️  Skipping $filename"
+		continue
+	}
+
+	echo "🎨  Processing $filename"
+
+	# ---------- foreground ----------
+	tmp_fg="$(mktemp --suffix=.png)"
+	magick "$src" -resize x1080 "$tmp_fg"       # full 1080-px height, aspect kept
+	fg_width=$(identify -format "%w" "$tmp_fg") # foreground width in px
+
+	# ---------- fade mask ----------
+	# Build *height*×*width* first (1080×fg_width), then rotate 90°
+	tmp_mask="$(mktemp --suffix=.png)"
+	magick -size "1080x${fg_width}" \
+		gradient:black-transparent -rotate 90 "$tmp_mask"
+
+	# ---------- apply mask ----------
+	tmp_faded="$(mktemp --suffix=.png)"
+	magick "$tmp_fg" "$tmp_mask" -alpha on -compose DstIn -composite "$tmp_faded"
+
+	# ---------- final composite ----------
+	magick \
+		\( "$src" -resize 1920x1080^ -gravity center -extent 1920x1080 -blur 0x8 \) \
+		"$tmp_faded" -gravity east -compose over -composite "$out"
+
+	rm -f "$tmp_fg" "$tmp_mask" "$tmp_faded"
+done
+
+echo "✅  Done. Output saved in $OUT_DIR"

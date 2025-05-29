@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Directory with background images
+IMAGE_DIR="$(realpath ./backgrounds)"
+
+# Path to config file
+CONFIG="$(realpath ./kitty-tinted.conf)"
+
+# Pick a random image
+IMAGE=$(find "$IMAGE_DIR" -type f \( -iname '*.jpg' -o -iname '*.png' \) | shuf -n 1)
+
+# Launch Kitty with the custom config and background image
+kitty \
+	--config "$CONFIG" \
+	--override "background_image=$IMAGE"
